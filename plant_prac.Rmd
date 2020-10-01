@@ -1,0 +1,609 @@
+---
+title: 'Virtual Field Course 2020: The Kenya Long-term Exclusion Experiment (KLEE)'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+<p align="center">
+![](C:/Users/wayne/OneDrive/Documents/klee/images/KLEE_map_0.png){#id .class height=500}
+<p>
+
+**Figure 1.** Layout of the KLEE, Mpala. Each block has six experimental treatment plots. We will focus on four of them: 1) Fenced and No cattle ("O"), 2) Fenced and cattle allowed ("C"), 3) Not Fenced but no cattle ("MW"), and 4) Not Fenced and Cattle ("MWC").
+
+***PACKAGES REQUIRED***
+
+```{r eval=FALSE, message=FALSE}
+install.packages(c('tidyverse','data.table','vegan'))
+
+library(tidyverse)
+library(data.table)
+library(vegan)
+```
+
+# Understanding effects of herbivores on plant communities
+
+Herbivores can have profound effects on the physical and species composition of plant communities. As well as the physical disturbance that occurs due to trampling of soil and vegetation, grazers and browsers remove and consume standing plant biomass (obvs), and excrete digested plant and waste material, impacting soil nutrient dynamics. These effects can reduce the dominance of competitive plants, allowing less competitive ones to persist. Alternatively, selective herbivores may consume palatable species, leaving less palatable ones behind. Mpala contains both livestock and wild mammal herbivores, and each may have different effects on the composition of savanna communities, and very different effects when combined versus alone. The Kenya Long-Term Exclusion Experiment was set up in 1995, to understand these effects, and to guide management of livestock grazing in a way that is sustainable and can allow wild herbivores and cattle to coexist.
+
+The KLEE consists of three experiment blocks, located on the black-cotton soil plateau of Mpala (circled in yellow):
+
+<p align='center'>
+![](C:/Users/wayne/OneDrive/Documents/klee/images/mpala_map.png){#id .class height=500}
+<p>
+
+Each block is divided into six experimental plots, and we will focus on four plots per block with the following experimental treatments:
+
+**Fenced , No Cattle**: all herbivores are excluded<br>
+**Fenced , Cattle allowed**: wild herbivores excluded, cattle allowed to graze<br>
+**Not Fenced , No Cattle**: wild herbivores have access, cattle do not<br>
+**Not Fenced , Cattle**: wild herbivores and cattle have access<br>
+
+In this practical, we are very lucky to have been given access to plant community survey data for these experimental plots from the KLEE for this very year. We will use these data to explore the following:
+
+**1)** How does species richness accumulate with area?
+
+**2)** Does plant species richness differ among treatments, and if so how?
+
+**3)** Does plant community composition differ according to the herbivore regime?
+
+For Question 1, we will use a nonlinear power model to explore species-area relationships. For Question 2, we'll use linear models with interactions to analyse species richness. For Question 3, I will introduce you to a multivariate ordination tool called non-metric multidimensional scaling.
+
+
+## Prac Set-up
+
+In total we have 3 experimental blocks, north, central and south.
+
+In each block we will focus on plots with one of 4 experimental treatment combinations coded as follows:
+
+Fenced , No Cattle ('F_NC')<br>
+Fenced , Cattle allowed ('F_C')<br>
+Not Fenced , No Cattle ('NF_NC')<br>
+Not Fenced , Cattle ('NF_C')<br>
+
+
+I will split you into 3 large-ish break-out room groups and I want one group to focus on the plots in one block for the whole of the practical:
+
+<p align='center'>
+```{r echo=FALSE}
+group.nr<-c(rep(1,4),rep(2,4),rep(3,4))
+
+plot<-c("north_F_NC","north_F_C","north_NF_NC","north_NF_C","central_F_NC","central_F_C","central_NF_NC","central_NF_C","south_F_NC","south_F_C","south_NF_NC","south_NF_C") 
+
+knitr::kable(cbind(group.nr,plot),col.names=c("Group number", "Plot"),align='l',format = "html", table.attr = "style='width:25%;'")
+```
+<p>
+
+
+In your Outlook fieldcourse group documents area, you will find a folder named after the experiment. Within that folder, there is one 'spp_richness.csv' file (for Question 2), and folders for the north, central and south block. The data files for required for questions 1 and 2 are in the corresponding folder. **For Question 1, we will use the .csv files that have filenames the same as in the table above. So for question 1, each treatment plot has its own .csv file (e.g. north_F_NC.csv).**
+
+
+# 1) How does species richness accumulate with increasing area?
+
+Studying how species richness accumulates with area has a practical function: it can help us to establish if our experimental or observational plots are large enough to capture a representative sample of the wider community. Beyond that, species-area relationships are a fundamental research focus in ecology, underpinning key theories in community and macro-ecology such as island biogeography.
+
+In each of your experimental plots, the plant species present in 10 separate subplots - 5m$^2$- have been recorded. If we want to describe how species richness accumulates with area, we need to take a similar approach to looking at accumulation of bird species in MacKinnon lists. But this time, we need to add *plots* together in a random order to calculate cumulative species richness, and repeating a number of times so we can calculate an average of the species-area relationship. But we have a data-frame with 0s and 1s for each subplot in our larger treatment plots; each subplot is represented by a column in your data set, and the rows are species. The first few rows of the treatment plot data-sets look something like this:
+
+```{r echo=FALSE, message=FALSE}
+north_F_NC<-read.csv("C:/Users/wayne/OneDrive/Documents/klee/student_data/north_F_NC.csv")
+
+head(north_F_NC)
+
+```
+
+To calculate cumulative species richness with increasing area (addition of subplots), we basically need to randomize the order of the subplots (our subplot columns). For illustration purposes, the plot order in the example is kept to the original, but in practice we'll be randomizing.
+
+Then, we can calculate cumulative species richness quickly, by taking the following steps:
+
+i) Add up the 1s per species every time we add a new plot (so summing across the randomized columns), as shown (ignoring species names here):
+
+```{r echo=F, message=FALSE}
+
+north_F_NC<-read.csv("C:/Users/wayne/OneDrive/Documents/klee/student_data/north_F_NC.csv")
+require(data.table)
+dt<-setDT(north_F_NC)
+dtsub <- dt[,-1]
+dtcum<-dtsub[, names(dtsub) := Reduce(`+`, dtsub, accumulate = TRUE)]
+head(dtcum)
+
+```
+
+ii) Replace values >1 with 1, so that each column now represents species present in a sequentially added set of 1-10 plots:
+
+```{r echo=F, message=FALSE}
+
+north_F_NC<-read.csv("C:/Users/wayne/OneDrive/Documents/klee/student_data/north_F_NC.csv")
+require(data.table)
+dt<-setDT(north_F_NC)
+dtsub <- dt[,-1]
+dtcum<-dtsub[, names(dtsub) := Reduce(`+`, dtsub, accumulate = TRUE)]
+dtcum[ dtcum > 1  ] <- 1
+head(dtcum)
+
+```
+
+iii) The final step is to sum up the number of species in each column (summing across rows). This will give us cumulative species richness for area increasing from 5 m$^2$ to 50 m$^2$. 
+
+Then we start over again and repeat the process, 20 times in our case. The loop I made below is annotated, so you can see what each element is doing. We will use the package 'data.table' for this calculation:
+
+```{r eval=FALSE}
+north_F_NC<-read.csv("C:/Users/wayne/OneDrive/Documents/klee/student_data/north_F_NC.csv")# you will need to set your own working directory
+
+require(data.table)
+
+dt<-setDT(north_F_NC) #sets the dataframe as a 'data.table' object, which allows us to use some handy functions in the eponypmous package.
+    
+area.boot.strap<-list() #creates an empty list
+N=20 #defines the number randomizations of your subplots
+for(n in 1:N){      #for the nth of each of our N randomizations, do the following:
+
+dtsub <- dt[,-1] #remove the species names column
+res.mat<-matrix(nrow=ncol(dtsub),ncol=2) #this will be our output matrix, with number of rows equaling number of subplots (10), and 2 columns: one for cumulative area, and one for species.
+
+colnames(res.mat)<-c("Area","cumulative_species") #column names
+ 
+rand.sample=sample(colnames(dtsub),10,replace=F) #generate a randomized order of the subplots 
+
+dtreorder<-setcolorder(dtsub, rand.sample) #this function creates a table with subplots reordered according to our random order
+
+dtcum<-dtreorder[, names(dtreorder) := Reduce(`+`, dtreorder, accumulate = TRUE)] #this line takes the columns named in dtreorder (our subplot names), and sums up (`+`) across those columns (:=) in dtreorder, in a cumulative way (accumulate = TRUE) using the function Reduce() so that the cumulative values are returns. NOTE: these are not our final  cumulative species numbers.
+
+dtcum[ dtcum > 1  ] <- 1 #replaces all the values > 1 with 1
+
+total<-colSums(dtcum) #sums up each column to give the cumulative species numbers for areas from 5 to 50 sq m.
+
+res.mat[,1]<-seq(5,50,5) # sets the 'Area' in our output column 1: seq(minimum, maximum, interval)
+
+res.mat[,2]<-total # puts the cumulative species richness numbers in column 2 of our output
+
+rm(dtreorder) #remove to start again
+
+rm(dtcum) #remove to start again
+
+rm(dtsub) #remove to start again
+
+area.boot.strap[[n]]<-res.mat #each of the n randomization outputs will be stored in our area.boot.strap list.
+}
+```
+
+Have a quick check of the first 2 randomisations to see if it worked:
+```{r eval=FALSE}
+lapply(area.boot.strap[c(1,2)], head) #applies head() to the first two outputs in our list
+
+```
+
+```{r echo=FALSE,message=FALSE, fig.align='center'}
+north_F_NC<-read.csv("C:/Users/wayne/OneDrive/Documents/klee/student_data/north_F_NC.csv")
+library(tidyverse)
+require(data.table)
+
+dt<-setDT(north_F_NC)
+area.boot.strap<-list() #create an empty list
+N=20 #define the number of bootstrapping iterations
+for(n in 1:N){      #for each of our 20 randomizations
+
+dtsub <- dt[,-1]
+res.mat<-matrix(nrow=ncol(dtsub),ncol=2) #definte a matrix, with number of rows equaling number of subplots, and 2 columns: one for cumulative Area, and one for species.
+
+colnames(res.mat)<-c("Area","cumulative_species")# column names
+ 
+rand.sample=sample(colnames(dtsub),10,replace=F) #generate a randomized order of the subplots 
+dtreorder<-setcolorder(dtsub, rand.sample) #this function creates a table with subplots reordered according to our random order
+dtcum<-dtreorder[, names(dtreorder) := Reduce(`+`, dtreorder, accumulate = TRUE)] #this takes the columns named in dtreorder (our subplot names), and sums up (`+`) across those columns (:=) in dtreorder, in a cumulative way (accumulate = TRUE) using the function Reduce().
+
+dtcum[ dtcum > 1  ] <- 1 #replaces all the values > 1 with 1
+total<-colSums(dtcum) #sums up each colum to give a vector of the cumulative species number
+
+res.mat[,1]<-seq(5,50,5) # sets the 'Area' in our output
+res.mat[,2]<-total # puts thos cumulative species richness numbers in our output
+rm(dtreorder) #remove to start again
+rm(dtcum) #remove to start again
+rm(dtsub) #remove to start again
+area.boot.strap[[n]]<-res.mat
+}
+
+lapply(area.boot.strap[c(1,2)], head)
+
+```
+
+If you got this far, great! You should now have a list of 20 dataframes, with Area (5-50 sq m) and cumulative_species richness, each from a randomization of adding plots together. What is the final cumulative number of species for your plot?
+
+
+## Fitting a model with a power function to describe your species-area relationship
+
+As with MacKinnon lists, you would naturally expect that the greater area of savanna you survey, the more plant species you will find, but with diminishing returns at some point (i.e. the rate of species accumulation will reduce). For plants in contiguous vegetation, the species-area relationship (SAR) is often well-described by a model called the *power function*:
+
+
+\begin{equation}
+S= c*Area^z
+\end{equation}
+
+Where *S* is species richness, and *c* is the number of species at the starting area. *z* will be <1, hence the decline in accumulation with greater area. As we have 20 randomized sets of cumulative species richness, we will fit the power function model to each set, using a loop and a function called 'nls()', which stands for *non-linear least squares*. It's a handy function that allows you to fit bespoke models, where you specificy the model form:
+
+
+```{r eval=FALSE}
+estimates<-matrix(nrow=20,ncol=2) #we'll store our estimates for c and z from the 20 model runs in this data-frame.
+
+colnames(estimates)<-c("c","z")
+N=20 # Number of randomizations
+for(i in 1:N){ #for the ith randomization output in 1 to 20
+SAR<-nls(cumulative_species~c*Area^z,data=as.data.frame(area.boot.strap[[i]]), #this is the model
+         start=c(c=10,z=0.2)) #for nls, the estimates are found through an optimisation process. We need to tell it roughly where to start looking (start= ). We know our initial richness will be not far from 10, and we know from previous studies that z is often around 0.2 for grassland communities.
+
+estimates[i,]<-coef(SAR)# the rows of our dataframe will be made up of the ith model estimates
+}
+```
+
+We can use the average of these estimates to plot an average fitted SAR curve from our randomizations:
+
+```{r eval=FALSE}
+area<-seq(1,50,1) #provide the area values to feed the model, 1 to 5 sq m, with interval of 1 m for a smoother curve
+mean_SR<-mean(estimates[,1])*area^mean(estimates[,2]) #the 'mean' model based on the randomization estimates
+
+mean_SR #the mean predicted cumulative species richness values
+
+```
+
+We want to plot this relationship, but we also want to plot the uncertainty associated with estimating it (from the variation due to subplot randomization). To get this, we'll first use another loop to get predicted values of species richness for each of our 20 randomizations:
+
+```{r eval=FALSE}
+new_SR_list<-list()
+N=20
+
+for(n in 1:N ){
+  new_SR<-c()
+  
+    area<-seq(1,50,1) #set the input area
+    SR<-estimates[n,1]*area^estimates[n,2]  #instead of getting a mean cumulative species richness, we now get the cumulative species richness with increasing area for each randomization
+
+    new_SR<-SR
+    new_SR_list[[n]]<-new_SR #we store those vectors in a list called 'new_SR_list'
+}
+```
+
+We'll then calculate the lower 2.75% and upper 97.5% quantiles of predicted species richness for each area, from the 20 randomizations, and make a data frame of the area, mean predicted richness, and quantiles:
+
+```{r eval=FALSE}
+predictedSR<- data.frame(matrix(unlist(new_SR_list), nrow=length(new_SR_list), byrow=T)) #this first data-frame contains 50 columns (one per 1 sq m area increase), and 20 rows (one per randomization).
+
+lower_quant<-as.vector(unlist(lapply(predictedSR,quantile,probs=c(0.0275)))) #get 95% quantiles across columns
+upper_quant<-as.vector(unlist(lapply(predictedSR,quantile,probs=c(0.975))))
+
+mod<-data.frame(area,mean_SR,lower_quant,upper_quant) # final data-frame of area, mean species richness and quantiles (50 rows)
+
+```
+
+We can now finally plot the mean species-area curve, with a 95% confidence interval based on our quantiles (showing the precision of our mean model estimate):
+
+```{r eval=FALSE}
+ggplot(mod,aes(x=area,y=mean_SR))+geom_line()+
+  geom_ribbon(aes(ymin = lower_quant, ymax = upper_quant), fill = "grey70") +
+  geom_line(aes(y = mean_SR))
+```
+
+```{r echo=FALSE, fig.align='center'}
+north_F_NC<-read.csv("C:/Users/wayne/OneDrive/Documents/klee/student_data/north_F_NC.csv")
+library(tidyverse)
+require(data.table)
+
+dt<-setDT(north_F_NC)
+area.boot.strap<-list() #create an empty list
+N=20 #define the number of bootstrapping iterations
+for(n in 1:N){
+
+dtsub <- dt[,-1]    
+res.mat<-matrix(nrow=length(dtsub),ncol=2) #definte a data frame
+colnames(res.mat)<-c("Area","cumulative_species")
+ 
+rand.sample=sample(colnames(dtsub),10,replace=F)
+reorder<-setcolorder(dtsub, rand.sample)
+dtcum<-reorder[, names(reorder) := Reduce(`+`, reorder, accumulate = TRUE)]
+dtcum[ dtcum > 1  ] <- 1
+total<-colSums(dtcum)
+
+res.mat[,1]<-seq(5,50,5)
+res.mat[,2]<-total
+rm(dtcum)
+rm(dtsub)
+rm(reorder)
+area.boot.strap[[n]]<-res.mat
+}
+
+estimates<-matrix(nrow=20,ncol=2)
+colnames(estimates)<-c("c","z")
+
+for(i in 1:20){ 
+SAR<-nls(cumulative_species~c*Area^z,data=as.data.frame(area.boot.strap[[i]]),
+         start=c(c=10,z=0.2))
+
+estimates[i,]<-coef(SAR)
+}
+
+area<-seq(1,50,1)
+mean_SR<-mean(estimates[,1])*area^mean(estimates[,2]) 
+
+new_SR_list<-list()
+N=20
+
+for(n in 1:N ){
+  new_SR<-c()
+  
+  
+    area<-seq(1,50,1)
+    SR<-estimates[n,1]*area^estimates[n,2]  
+
+   
+    new_SR<-SR
+    new_SR_list[[n]]<-new_SR
+}
+
+predictedSR<- data.frame(matrix(unlist(new_SR_list), nrow=length(new_SR_list), byrow=T)) #this first data-frame contains 50 columns (one per 1 sq m area increase), and 20 rows (one per randomization).
+
+lower_quant<-as.vector(unlist(lapply(predictedSR,quantile,probs=c(0.0275)))) #get 95% quantiles across columns
+upper_quant<-as.vector(unlist(lapply(predictedSR,quantile,probs=c(0.975))))
+
+mod<-data.frame(area,mean_SR,lower_quant,upper_quant) # final data-frame of area, mean species richness and quantiles (50 rows)
+
+ggplot(mod,aes(x=area,y=mean_SR))+geom_line()+
+  geom_ribbon(aes(ymin = lower_quant, ymax = upper_quant), fill = "grey70") +
+  geom_line(aes(y = mean_SR))
+```
+
+**CLASS RECONVENES:**
+
+Now, each of the three groups should hopefully have produced a plot of the species-area relationship, for each of the experimental plots in the group's block. Let's have a look at those plots together as a class so we can compare them. I would also like you to give me the mean value of z and of c that your plot represents, along with the 95% confidence intervals using the quantiles. **Hint**: The values you need will be stored in 'estimates'. If you get stuck, I will give you a hand.
+
+## Linearizing the relationship
+
+We can also get a linear approximation of the species-area relationship, by taking the log10 of both sides of the equation:
+
+\begin{equation}
+log10(S)= log10(c)+z*log10(Area)
+\end{equation}
+
+We won't do this today with our data, but for those of you who feel adventurous, you can later try to change the code above to get the linear version of the relationship fitted and plotted, and compare the values you get for z and c.
+
+
+# 2) Does Species richness differ depending on herbivores?
+
+So, we've explored the accumulation of species in the experimental plots, and it looks like the total area sampled is big enough to obtain a representative example of te whole community (we were getting close to asymptotes). But, we can still use the smaller subplots to explore whether species richness in those plots differs, depending on whether or not cattle/herbivores are present. For this second part, we will use the data-set 'spp_richness.csv', which is in the main practical folder on Outlook. The data-set looks like this:
+
+```{r echo=FALSE}
+rich<-read.csv("C:/Users/wayne/OneDrive/Documents/klee/student_data/spp_richness.csv")
+
+head(rich)
+
+```
+
+You'll see that I have renamed the two herbivore treatment types, for ease of interpretation. So, we have block, whether wildlife was excluded (0) or allowed access (1), whether cattle were excluded (0) or allowed access (1), and the plant species richness.
+
+You will stay working in your groups. The first thing you will need to do, is to create a subset. So Group 1 needs a subset of the 'north' block, group 2 the 'central', and group 3 the 'south'.
+
+Once you've got your subset, you are ready to start exploring your data. Remember, it's good practice to plot your data and explore it before you try to analyse it statistically: plotting can reveal any problems you might need to deal with that could otherwise make your analyses invalid. Let's start by making a box and whisker plot, I will use the 'central' block as an example in the code:
+
+```{r eval=FALSE}
+#don't forget to change cattle and wildlife to factors, so ggplot2 understands they are not numbers
+
+central$cattle<-as.factor(central$cattle)
+central$wildlife<-as.factor(central$wildlife)
+
+ggplot(central, aes(x=cattle, y=spp_richness, fill=wildlife)) +
+  geom_boxplot()+
+  geom_point(position=position_jitterdodge(),alpha=0.3) #'jittering' adds a bit of random noise on the x axis so we can see all points
+```
+
+```{r echo=FALSE, fig.align='center'}
+rich<-read.csv("C:/Users/wayne/OneDrive/Documents/klee/student_data/spp_richness.csv")
+
+central<-subset(rich,block=="central")
+central$cattle<-as.factor(central$cattle)#don't forget to change cattle and wildlife to factors, so ggplot2 understands they are not numbers
+central$wildlife<-as.factor(central$wildlife)
+ggplot(central, aes(x=cattle, y=spp_richness, fill=wildlife)) +
+  geom_boxplot()+
+  geom_point(position=position_jitterdodge(),alpha=0.3) #'jitter' add a bit of noise so we can see all points
+```
+
+The boxplots give us an idea of the spread of the data, and a lack of overlap between neighbouring boxes (boxes represent the central 50% of values in a group) would indicate there may be significant differences. But we need stats to verify. In your boxplots, keep an eye out for strong asymmetry (skew) in the spread of values, and for extreme outliers. Looking at your boxplot, do you think there could be significant effects of cattle, or wildlife, or a combined effect?
+
+**CLASS RECONVENES**
+
+To analyse our species richness data, we will use a linear model. Strictly speaking, with count data like species richness, statistical purists would have you use a generalised linear model assuming a poisson distribution (count data often follow this distribution, as the spread of values increases in line with the mean, in fact, the variance would equal the mean). But don't worry about these technicalities for now. The spread of species richness values is reasonably similar and symmetrical for each treatment, so we are unlikely to be violating key assumptions of a linear model here.
+
+It's worth spending a bit of time though thinking about what our model is. With our two treatments (cattle and wildlife), we can have an additive or an interaction model. The figure below shows hypothetical examples:
+
+<p align="center">
+![](C:/Users/wayne/OneDrive/Documents/klee/images/model_plot.png){#id .class height=500}
+
+Looking at the additive model, we only have three things to estimate from our data: 
+
+i) an intercept (this is the mean richness for the subplots with no cattle and no wildlife)  
+ii) the effect of cattle presence (the mean difference in richness with versus without cattle)
+iii) the effect of wildlife presence (the mean difference in richness with versus without wildlife)
+
+Note that the effect of wildlife presence does not depend on whether cattle are present. For an additive model we could adapt our basic linear model equation (which you have seen several times now) to the following:
+
+\begin{equation}
+Richness= \alpha + \beta1 * (cattle)+\beta2 * (wildlife) 
+\end{equation}
+  
+Where $\alpha$ is the intercept, and $\beta1$ and $\beta2$ are the effects of cattle/widlife presence. Remember our treatments were 1s and 0s? The same applies in the above equation, so that if wildlife are absent (0), their effect no longer contributes to calculating species richness (which would make obvious sense!).
+
+Looking at the interaction model, we now have a fourth value to estimate: the extra effect of wildlife when cattle are present. In other words, *the effect of wildlife depends on cattle presence*. Our equation in this case would be:
+
+\begin{equation}
+Richness= \alpha + \beta1 * (cattle)+\beta2 * (wildlife) + \beta3 * (cattle*wildlife) 
+\end{equation}
+
+So, the extra effect of wildlife ($\beta3$) only enters the calculation with cattle present. 
+
+You are now going to run a linear model, check your model assumptions, and interpret the results, to see how much evidence there is (in your block) for an interaction between cattle and wildlife. You should see this chunk of code as a template for statistical analysis with a linear model. Note, it may of course differ from our hypothetical example above!:
+
+```{r eval=FALSE}
+
+lm_central<-lm(spp_richness~cattle+wildlife+cattle:wildlife,data=central) #the model. 'cattle:wildlife' is the interaction term.
+
+#it is good practice to check that our linear model meets two assumptions: that the spread (i.e. variance) of our residuals is more or less constant, and that they follow a normal distribution. Contrary to popular belief in biology, it is the residuals (the difference between the group means and our values in this case) that should be normally distributed and not the data. It is standard practice to check this with the top to plots using the following code:
+
+par(mfrow=c(2,2)) # gives us a plot panel with space for four plots (2 by 2)
+plot(lm_central)
+
+summary(lm_central) #summary table, containing our model estimates, and stats telling us if they are significantly different from zero or not.
+
+anova(lm_central) #Analysis of variance table, telling us if the variation explained by our treatments (and their interaction is significant). If you don't have a significant interaction, you can remove the interaction term from the model, and run the additive model instead, to interpret the effects of cattle and wildlife alone. 
+
+TukeyHSD(aov(lm_central)) # If you have a significant interaction, you can use Tukey's post-hoc pairwise comparisons to see which treatment combinations significantly differ from one another. These tests are very much like t-tests, but the p value is adjusted to account for the fact that with increasing multiple comparisons, we may find a significant difference somewhere purely by chance.
+
+#They take a little bit of getting used to to interpret, so I will talk you through them, and will focus on the the effect of widlife, with/without cattle (the 2nd and 4th lines in the lower table).
+
+```
+
+**CAUTION** Using anova() in this simple way is only appropriate when you have the same number of observations in each group (balanced data). Also, when your interaction is significant, you cannot really interpret the effects of the variables on their own.
+
+
+```{r echo=FALSE, fig.align='center'}
+rich<-read.csv("C:/Users/wayne/OneDrive/Documents/klee/student_data/spp_richness.csv")
+
+central<-subset(rich,block=="central")
+central$cattle<-as.factor(central$cattle)#don't forget to change cattle and wildlife to factors, so ggplot2 understands they are not numbers
+central$wildlife<-as.factor(central$wildlife)
+
+lm_central<-lm(spp_richness~cattle+wildlife+cattle:wildlife,data=central) #the model. 'cattle:wildlife' is the interaction term.
+
+#it is good practice to check that our linear model meets two assumptions: that the spread (i.e. variance) of our residuals is more or less constant, and that they follow a normal distribution. Contrary to popular belief in biology, it is the residuals (the difference between the group means and our values in this case) that should be normally distributed and not the data. It is standard practice to check this with the top to plots using the following code:
+
+par(mfrow=c(2,2)) # gives us a plot panel with space for four plots (2 by 2)
+plot(lm_central)
+
+summary(lm_central) #summary table, containing our model estimates, and stats telling us if they are significantly different from zero or not.
+
+anova(lm_central) #Analysis of variance table, telling us if the variation explained by our treatments (and their interaction is significant). If you don't have a significant interaction, you can remove the interaction term from the model, and run the additive model instead, to interpret the effects of cattle and wildlife alone. 
+
+TukeyHSD(aov(lm_central)) # If you have a significant interaction, you can use Tukey's post-hoc pairwise comparisons to see which treatment combinations significantly differ from one another. These tests are very much the same as t-tests, but the p value is adjusted to account for the fact that with increasing multiple comparisons, we may find a significant difference somewhere purely by chance.
+
+#They take a little bit of getting used to to interpret, so I will talk you through them.
+
+```
+
+It is useful to also make the following plot to help interpret our results:
+
+```{r eval=FALSE}
+#we need to calculate means and standard errors from our groups, which can neatly be done by the first two lines of code below. 
+
+groups<-group_by(central,cattle,wildlife) #group central data by cattle and wildlife
+group_means<-summarise(groups,y_mean=mean(spp_richness),y_se=sd(spp_richness)/sqrt(10)) #summarise the grouped data, with means and standard errors per group
+
+#creating the plot
+  
+  ggplot(group_means,aes(x = cattle, y = y_mean, color = wildlife)) + #the data and variables that are being plotted
+  geom_line(aes(group = wildlife)) + #plots lines joining means
+  geom_point() + #plots means
+  geom_errorbar(aes(ymin = y_mean-1.96*y_se, ymax = y_mean+1.96*y_se), width = .1) + #plots 95% confidence intervals
+  ylim(10, 22) + #sets y axis limits
+  labs(x = "Cattle", color  = "Wildlife", y = "Species richness") #sets plot  labels
+```
+
+```{r echo=FALSE,message=FALSE, fig.align='center'}
+rich<-read.csv("C:/Users/wayne/OneDrive/Documents/klee/student_data/spp_richness.csv")
+require(dplyr)
+
+central<-subset(rich,block=="central")
+central$cattle<-as.factor(central$cattle)#don't forget to change cattle and wildlife to factors, so ggplot2 understands they are not numbers
+central$wildlife<-as.factor(central$wildlife)
+
+groups<-group_by(central,cattle,wildlife) #group central data by cattle and wildlife
+group_means<-summarise(groups,y_mean=mean(spp_richness),y_se=sd(spp_richness)/sqrt(10)) #summarise the grouped data, with means and standard errors per group
+
+#creating the plot
+  
+  ggplot(group_means,aes(x = cattle, y = y_mean, color = wildlife)) + #the data and variables that are being plotted
+  geom_line(aes(group = wildlife)) + #plots lines joining means
+  geom_point() + #plots means
+  geom_errorbar(aes(ymin = y_mean-1.96*y_se, ymax = y_mean+1.96*y_se), width = .1) + #plots 95% confidence intervals
+  ylim(10, 22) + #sets y axis limits
+  labs(x = "Cattle", color  = "Wildlife", y = "Species richness") #sets plot  labels
+```
+  
+**CLASS RECONVENES**
+
+By this point, we hopefully have run the models and have results back, along with that final interaction plot for interpreting. 
+
+What are the effects of cattle and wildlife? Is there evidence for an interaction in the three blocks? 
+
+We will interpret the results together, but in light of the results, I would like each of the three groups to explore their respective community data-sets- 'north_community.csv', 'south_community.csv', 'central_community.csv'. These are community data-sets showing species presence/absence in the 5 m$^2$ subplots within four treatment plots for each block, and we will use them in the next task. But *first*, I want to give you a small challenge and to try to find a way of comparing the species present in each treatment plot in your block, so we can better understand the species richness differences seen. Are there species that are only present/frequent in certain treatments?
+
+
+# 3) Looking at community composition: Ordination plots
+
+In this last part of the prac, we will briefly try out a method of visualising dissimilarities in species composition among subplots with different treatments. We will use a method known as ordination, and in particular, non-metric multidimensional scaling (NMDS). This is a really useful tool in community ecology, so it's good for you to know something about it. It's also not as scary as it sounds! 
+
+You will stay in your north/central/south groups for this, and you will need the .csv called 'north_community.csv', 'central_community.csv' or 'south_community.csv').
+
+***Understanding ordination plots***
+
+In our vegetation subplots (5 m$^2$), we can think of each species in the wider pool of those present as being like a dimension. So, our communities can vary in as many dimensions as there are species! This can make understanding differences between plots and treatments difficult, but we can use NMDS to collapse down those dimensions into (hopefully) 2 or 3 axes reprenting dissimilarity in species composition between subplots. 
+
+First, we need to calculate an index of how dissimilar our communities are, for every pair of subplots we have. The Bray-Curtis dissimilarity index is the default used for plant community data, and for presence/absence data, it gives the same value as 1-Sorensen’s similarity (see Bird Census Techniques). A matrix is constructed containing all pairwise dissimilarities between subplots in the data set. Think of these as being like distances in multivariate (multispecies) space. 
+
+***Don't stress about stress***
+
+Through an iterative process, the NMDS function will try to find the configuration of plots as points in 2- or 3-dimensional space (we choose the dimension number), for which the distances between pairs of points fit best with the actual dissimilarities (rank correlations between the two are used for this). The NMDS procedure measures this as ‘stress’: the mismatch between the rank correlation of observed distances and the distances in the lower-dimensional ordination. Once a minimum stress level has been reached (stress <0.20 is considered a good fit), a ‘solution’ NMDS ordination can be plotted. Ordination plots consist of two axes, and the axes are the co-ordinates of the dimensions (we will just plot the first two of three dimensions). Axis co-ordinates are given for each subplot communities, so points represent our subplot communities, and distances between community points can be interpreted as dissimilarity in species composition between them.
+
+Let's have a go of doing this for our three blocks! I will use the south block as an example:
+
+```{r eval=FALSE, message=FALSE}
+
+comms<-read.csv("south_community.csv",row.names=1) #row.names=1 makes it clear that the first column is not a variable, just a row name
+
+comms<-as.matrix(comms,label=T) #turn our data frame into a matrix
+
+comms_NMDS<-metaMDS(comms,k=3,trymax=100)# this is the main NMDS command. You need the community matrix name, the number of dimensions you want in the ordination (k=3), and the maximum number of tries at finding a best fitting solution. You'll get a whole load of iteration 'runs' in your console until a solution ordination has been reached.
+
+par(mfrow=c(1,1)) #reset the plot area to just one plot
+
+stressplot(comms_NMDS) #The stress plot simply shows the correlation between observed subplot dissimilarities, and those distances from our ordination. The tighter together points are, the better the fit.
+
+```
+
+OK, our best ordination will be stored under comms_NMDS. We need those dimension coordinates so we can make a plot, and we will plot the first two dimensions:
+
+```{r eval=FALSE}
+
+nmds_pts<-data.frame(comms_NMDS$points) # the 3 dimension coordinates
+
+nmds_pts$treat=c(rep("F_C",10),rep("F_NC",10),rep("NF_C",10),rep("NF_NC",10)) #we add a variable to our points for the treatments. These *MUST* be in the same order as our row names in the community matrix. We could of course derive the variable from the row names directly.
+
+ggplot(nmds_pts,aes(x=MDS1,y=MDS2,color=treat))+
+  geom_point(size=6)+
+  ggtitle("South Block")
+```
+
+```{r echo=FALSE, message=FALSE, fig.align='center'}
+
+require(vegan)
+
+comms<-read.csv("C:/Users/wayne/OneDrive/Documents/klee/student_data/south_community.csv",row.names=1) #row.names=1 makes it clear that the first column is not a variable, just a row name
+
+comms<-as.matrix(comms,label=T) #turn our data frame into a matrix
+
+comms_NMDS<-metaMDS(comms,k=3,trymax=100, trace=FALSE)# this is the main NMDS command. You need the matrix name, the number of dimensions you want in the ordination (k=3), and the maximum number of tries at finding a best fitting solution. You'll get a whole load of iteration 'runs' until a solution ordination has been reached.
+
+par(mfrow=c(1,1)) #reset the plot area to just one plot                    
+stressplot(comms_NMDS) #The stress plot simply shows the correlation between observed subplot dissimilarities, and those distances from our own ordination. The tighter together points are, the better the fit.
+
+nmds_pts<-data.frame(comms_NMDS$points) # the 3-dimension coordinates
+
+nmds_pts$treat=c(rep("F_C",10),rep("F_NC",10),rep("NF_C",10),rep("NF_NC",10)) #we add a variable to our points for the treatments. These *MUST* be in the same order as our row names in the community matrix. We could of course derive the variable from the row names directly.
+
+ggplot(nmds_pts,aes(x=MDS1,y=MDS2,color=treat))+
+  geom_point(size=6)+
+  ggtitle("South Block")
+
+```
+
+**CLASS RECONVENES**
+
+We will explore the three ordination plots together. What do you see? Are there any treatments with diverging plant communities? If so, does this correspond with our previous species richness results?
+
+<p align='center'>
+![](C:/Users/wayne/OneDrive/Documents/klee/images/savanna.png)
+<p>
